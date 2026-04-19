@@ -1,0 +1,23 @@
+운영체제 생성 파일 (macOS, Windows)
+
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+에디터 설정 폴더 (VS Code 등)
+
+.vscode/
+.idea/
+*.suo
+.ntvs
+*.njsproj
+*.sln
+*.sw?
+
+기타 임시 파일
+
+*.log
