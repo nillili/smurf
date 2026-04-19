@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>스머프 술래잡기 - 마이 서버</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #87CEEB; font-family: 'Pretendard', sans-serif; touch-action: none; }
+        #game-canvas { display: none; width: 100vw; height: 100vh; background-color: #86efac; }
+        .screen { display: none; flex-direction: column; align-items: center; justify-content: center; height: 100vh; width: 100vw; position: absolute; top: 0; left: 0; z-index: 10; }
+        .active { display: flex; }
+        #joystick-zone { position: absolute; bottom: 20px; left: 20px; width: 120px; height: 120px; background: rgba(255, 255, 255, 0.3); border-radius: 50%; display: none; z-index: 20; }
+        #joystick-knob { position: absolute; top: 35px; left: 35px; width: 50px; height: 50px; background: rgba(255, 255, 255, 0.8); border-radius: 50%; pointer-events: none; }
+        #action-btn { position: absolute; bottom: 30px; right: 30px; width: 80px; height: 80px; background: #3B82F6; color: white; border-radius: 50%; font-weight: bold; border: 4px solid white; box-shadow: 0 4px 6px rgba(0,0,0,0.3); display: none; z-index: 20; }
+        #game-ui { position: absolute; top: 10px; left: 0; width: 100%; display: none; justify-content: space-between; padding: 0 20px; z-index: 20; pointer-events: none; }
+        #role-announcement { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 50; display: none; text-align: center; pointer-events: none; }
+        .role-card { background: white; padding: 2rem; border-radius: 2rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); animation: popIn 0.5s; }
+        @keyframes popIn { 0% { transform: scale(0.5); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); display: none; align-items: center; justify-content: center; z-index: 100; }
+    </style>
+</head>
+<body>
+
+    <!-- 홈 화면 -->
+    <div id="home-screen" class="screen active bg-sky-100">
+        <h1 class="text-4xl font-extrabold text-blue-600 mb-8 drop-shadow-md">🍄 스머프 전용 서버</h1>
+        <div id="loading-status" class="mb-4 text-blue-500 font-bold text-center">
+            서버 연결 시도 중...<br>
+            <span class="text-xs font-normal text-gray-400">(설정값이 올바르지 않으면 이 메시지가 사라지지 않습니다)</span>
+        </div>
+        <button onclick="goToCreateRoom()" class="w-64 py-4 mb-4 bg-blue-500 hover:bg-blue-600 text-white text-xl rounded-2xl shadow-lg font-bold">방 만들기</button>
+        <button onclick="openJoinModal()" class="w-64 py-4 bg-green-500 hover:bg-green-600 text-white text-xl rounded-2xl shadow-lg font-bold">방 참여하기</button>
+    </div>
+
+    <!-- 방 참여 모달 -->
+    <div id="join-modal" class="modal-overlay">
+        <div class="bg-white p-8 rounded-3xl shadow-2xl w-80 text-center">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">방 번호 입력</h2>
+            <input type="text" id="join-room-input" placeholder="ROOM-ID" class="w-full text-center text-2xl font-black py-3 border-2 border-blue-200 rounded-xl mb-6 uppercase">
+            <div class="flex gap-2">
+                <button onclick="closeJoinModal()" class="flex-1 py-3 bg-gray-200 text-gray-600 rounded-xl font-bold">취소</button>
+                <button onclick="confirmJoinRoom()" class="flex-1 py-3 bg-blue-500 text-white rounded-xl font-bold">입장</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 대기실 -->
+    <div id="lobby-screen" class="screen bg-sky-100">
+        <div class="bg-white p-6 rounded-3xl shadow-xl w-80 flex flex-col h-[75vh]">
+            <div class="flex justify-between items-end mb-4 border-b pb-2">
+                <h2 class="text-2xl font-bold text-gray-800">대기실</h2>
+                <span id="lobby-room-code" class="text-blue-500 font-bold text-sm"></span>
+            </div>
+            <div class="flex-1 overflow-y-auto mb-4 bg-gray-50 rounded-xl p-2" id="player-list"></div>
+            <button id="start-btn" onclick="requestStartGame()" class="w-full py-4 bg-blue-600 text-white rounded-xl font-bold text-lg shadow-md mb-2 hidden">게임 시작</button>
+            <button onclick="location.reload()" class="w-full py-2 bg-gray-200 text-gray-600 rounded-xl font-bold text-sm">나가기</button>
+        </div>
+    </div>
+
+    <!-- 역할 안내 -->
+    <div id="role-announcement">
+        <div id="role-card-container" class="role-card">
+            <span id="role-emoji" class="text-7xl block mb-2"></span>
+            <span id="role-name" class="text-4xl font-black"></span>
+            <p id="role-desc" class="mt-4 text-gray-500 text-sm font-medium"></p>
+        </div>
+    </div>
+
+    <!-- 게임 화면 -->
+    <canvas id="game-canvas"></canvas>
+    <div id="game-ui">
+        <div class="bg-white/90 px-4 py-2 rounded-full shadow-lg border-2 border-blue-200 font-bold text-lg">⏱ <span id="timer-display">01:00</span></div>
+        <div id="my-role-tag" class="bg-blue-600 text-white px-5 py-2 rounded-full shadow-lg font-bold text-sm border-2 border-white">직업: <span id="display-role"></span></div>
+    </div>
+
+    <div id="joystick-zone"><div id="joystick-knob"></div></div>
+    <button id="action-btn">액션</button>
+
+    <div id="result-screen" class="screen bg-black/90">
+        <div class="bg-white p-8 rounded-3xl shadow-xl text-center w-80">
+            <h2 id="result-title" class="text-3xl font-black mb-4"></h2>
+            <p id="result-desc" class="text-gray-600 mb-6"></p>
+            <button onclick="location.reload()" class="w-full py-3 bg-blue-500 text-white rounded-xl font-bold shadow-md">처음으로</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // 🔴🔴🔴 아래 객체 내용을 본인의 Firebase 콘솔에서 복사한 값으로 정확히 교체하세요 🔴🔴🔴
+        const firebaseConfig = {
+        apiKey: "AIzaSyDbME1nytVUi6ACfyAx_ilIbjcn1roTLdo",
+        authDomain: "smurfs-b1f67.firebaseapp.com",
+        projectId: "smurfs-b1f67",
+        storageBucket: "smurfs-b1f67.firebasestorage.app",
+        messagingSenderId: "1040524364405",
+        appId: "1:1040524364405:web:bff2074c84a6aa7e0e063c",
+        measurementId: "G-WCP4XN67E1"
+        };
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = "smurf-game-custom"; 
+
+        let user = null;
+        let roomCode = "";
+        let isHost = false;
+        let gameActive = false;
+        let myRole = "";
+        let players = {};
+        let localTimer = 60;
+        let timerInterval = null;
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+
+        // 익명 로그인 시도
+        signInAnonymously(auth).catch(err => {
+            console.error("로그인 실패:", err);
+            let errorMsg = "연결 오류: Firebase 설정을 확인하세요";
+            if (err.code === 'auth/network-request-failed') {
+                errorMsg = "네트워크 차단됨: 브라우저 미리보기 보안 제한입니다.<br>이 코드를 .html 파일로 저장하여 직접 열어보세요!";
+            }
+            document.getElementById('loading-status').innerHTML = `<span class="text-red-500 font-bold">${errorMsg}</span>`;
+        });
+
+        onAuthStateChanged(auth, u => {
+            user = u;
+            if(user) {
+                document.getElementById('loading-status').innerText = "✅ 서버 연결 성공!";
+                setTimeout(() => document.getElementById('loading-status').style.display = 'none', 1500);
+            }
+        });
+
+        window.goToCreateRoom = async () => {
+            if(!user) return alert("서버에 연결 중입니다. 잠시만 기다려주세요.");
+            isHost = true;
+            roomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+            await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomCode), {
+                hostId: user.uid, status: 'waiting', timer: 60, createdAt: serverTimestamp()
+            });
+            joinLobby();
+        };
+
+        window.openJoinModal = () => document.getElementById('join-modal').style.display = 'flex';
+        window.closeJoinModal = () => document.getElementById('join-modal').style.display = 'none';
+
+        window.confirmJoinRoom = async () => {
+            const input = document.getElementById('join-room-input').value.toUpperCase();
+            if(!input) return;
+            const snap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', input));
+            if(snap.exists()) {
+                roomCode = input;
+                isHost = false;
+                closeJoinModal();
+                joinLobby();
+            } else {
+                alert("방을 찾을 수 없습니다. 방 번호를 확인하세요.");
+            }
+        };
+
+        const joinLobby = async () => {
+            await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomCode, 'players', user.uid), {
+                id: user.uid, x: window.innerWidth/2, y: window.innerHeight/2, role: 'smurf', state: 'alive', outTimer: 0, isHost: isHost
+            });
+
+            document.getElementById('lobby-room-code').innerText = roomCode;
+            document.getElementById('home-screen').classList.remove('active');
+            document.getElementById('lobby-screen').classList.add('active');
+
+            onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomCode), snap => {
+                const data = snap.data();
+                if(!data) return;
+                if(data.status === 'playing' && !gameActive) prepareGame(data.roles[user.uid]);
+                if(data.status === 'ended') endGame(data.winner === 'smurfs');
+            });
+
+            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'rooms', roomCode, 'players'), snap => {
+                const list = document.getElementById('player-list');
+                list.innerHTML = "";
+                snap.forEach(d => {
+                    const p = d.data();
+                    players[p.id] = p;
+                    list.innerHTML += `<div class="p-2 mb-2 bg-white rounded border shadow-sm flex items-center gap-2">
+                        <span class="text-xl">${p.isHost ? '👑' : '👤'}</span>
+                        <span class="font-medium">${p.id === user.uid ? '나 (참가 중)' : '다른 플레이어'}</span>
+                    </div>`;
+                });
+                if(isHost) document.getElementById('start-btn').classList.remove('hidden');
+            });
+        };
+
+        window.requestStartGame = async () => {
+            const ids = Object.keys(players);
+            let roles = ['gargamel', 'azrael', 'papa'];
+            while(roles.length < ids.length) roles.push('smurf');
+            roles.sort(() => Math.random() - 0.5);
+            const roleMap = {};
+            ids.forEach((id, i) => roleMap[id] = roles[i]);
+
+            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomCode), {
+                status: 'playing', roles: roleMap, startTime: serverTimestamp()
+            });
+        };
+
+        const prepareGame = (role) => {
+            myRole = role;
+            const ann = document.getElementById('role-announcement');
+            const data = {
+                'gargamel': { emoji: '🧙‍♂️', name: '가가멜', desc: '스머프를 잡으세요!' },
+                'azrael': { emoji: '🐈', name: '아즈라엘', desc: '손잡은 스머프를 떼어놓으세요!' },
+                'papa': { emoji: '🎅', name: '파파스머프', desc: '아웃된 친구를 구하세요!' },
+                'smurf': { emoji: '🧢', name: '스머프', desc: '1분을 버티세요!' }
+            }[role];
+            document.getElementById('role-emoji').innerText = data.emoji;
+            document.getElementById('role-name').innerText = data.name;
+            document.getElementById('role-desc').innerText = data.desc;
+            ann.style.display = 'block';
+            setTimeout(() => { ann.style.display = 'none'; startGame(); }, 3000);
+        };
+
+        const startGame = () => {
+            gameActive = true;
+            canvas.style.display = 'block';
+            document.getElementById('game-ui').style.display = 'flex';
+            document.getElementById('lobby-screen').classList.remove('active');
+            document.getElementById('joystick-zone').style.display = 'block';
+            document.getElementById('display-role').innerText = myRole;
+            
+            if(myRole === 'papa') {
+                const btn = document.getElementById('action-btn');
+                btn.style.display = 'block';
+                btn.innerText = "구조";
+                btn.onclick = tryRevive;
+            }
+            
+            resizeCanvas();
+
+            setInterval(() => {
+                if(!gameActive || !user) return;
+                const me = players[user.uid];
+                updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomCode, 'players', user.uid), {
+                    x: me.x, y: me.y, state: me.state, outTimer: me.outTimer
+                });
+            }, 100);
+
+            timerInterval = setInterval(() => {
+                if(localTimer > 0) localTimer--;
+                document.getElementById('timer-display').innerText = `00:${localTimer.toString().padStart(2,'0')}`;
+                if(players[user.uid].outTimer > 0) players[user.uid].outTimer--;
+                
+                if(isHost && localTimer <= 0) {
+                    updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomCode), { status: 'ended', winner: 'smurfs' });
+                }
+            }, 1000);
+
+            gameLoop();
+        };
+
+        const tryRevive = () => {
+            const me = players[user.uid];
+            Object.values(players).forEach(p => {
+                if(p.state === 'dead' && p.outTimer === 0 && Math.hypot(p.x - me.x, p.y - me.y) < 60) {
+                    updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomCode, 'players', p.id), {
+                        state: 'alive', x: canvas.width/2, y: canvas.height/2
+                    });
+                }
+            });
+        };
+
+        let joyVec = {x:0, y:0};
+        const jz = document.getElementById('joystick-zone');
+        const jk = document.getElementById('joystick-knob');
+        jz.addEventListener('touchstart', e => {
+            const r = jz.getBoundingClientRect();
+            const cx = r.left + r.width/2, cy = r.top + r.height/2;
+            const move = t => {
+                let dx = t.clientX - cx, dy = t.clientY - cy;
+                const d = Math.hypot(dx, dy);
+                if(d > 40) { dx *= 40/d; dy *= 40/d; }
+                jk.style.transform = `translate(${dx}px, ${dy}px)`;
+                joyVec = {x: dx/40, y: dy/40};
+            };
+            const end = () => { jk.style.transform = `translate(0,0)`; joyVec = {x:0, y:0}; window.removeEventListener('touchmove', move); };
+            window.addEventListener('touchmove', move); window.addEventListener('touchend', end);
+            move(e.touches[0]);
+        });
+
+        const gameLoop = () => {
+            if(!gameActive) return;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const w = canvas.width, h = canvas.height, m = w * 0.08;
+
+            ctx.fillStyle = "#87CEEB"; ctx.fillRect(0, 0, w, h);
+            ctx.fillStyle = "#86efac"; ctx.fillRect(m, m, w-m*2, h-m*2);
+            ctx.strokeStyle = "#166534"; ctx.lineWidth = 10; ctx.strokeRect(m, m, w-m*2, h-m*2);
+
+            const me = players[user.uid];
+            if(me.state === 'alive' || (me.state === 'dead' && me.outTimer === 0)) {
+                me.x += joyVec.x * 4; me.y += joyVec.y * 4;
+                me.x = Math.max(20, Math.min(w-20, me.x));
+                me.y = Math.max(20, Math.min(h-20, me.y));
+            }
+
+            Object.values(players).forEach(p => {
+                ctx.save();
+                if(p.state === 'dead') {
+                    ctx.globalAlpha = 0.5; ctx.font = "30px Arial"; ctx.textAlign = "center";
+                    ctx.fillText('👻', p.x, p.y);
+                    if(p.outTimer > 0) { ctx.fillStyle="white"; ctx.font="12px Arial"; ctx.fillText(p.outTimer+"s", p.x, p.y+20); }
+                } else {
+                    const emo = {'gargamel':'🧙‍♂️', 'azrael':'🐈', 'papa':'🎅', 'smurf':'🧢'}[p.role];
+                    ctx.font = "34px Arial"; ctx.textAlign = "center";
+                    ctx.fillText(emo, p.x, p.y);
+                }
+                if(p.id === user.uid) { 
+                    ctx.beginPath(); ctx.arc(p.x, p.y, 25, 0, Math.PI*2); 
+                    ctx.strokeStyle="white"; ctx.stroke(); 
+                }
+                ctx.restore();
+
+                if(myRole === 'gargamel' && p.role === 'smurf' && p.state === 'alive') {
+                    if(Math.hypot(p.x - me.x, p.y - me.y) < 30) {
+                        updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomCode, 'players', p.id), {
+                            state: 'dead', outTimer: 10, x: 50, y: 50
+                        });
+                    }
+                }
+            });
+
+            if(isHost) {
+                const aliveSmurfs = Object.values(players).filter(p => p.role === 'smurf' && p.state === 'alive');
+                if(aliveSmurfs.length === 0 && Object.keys(players).length > 1) {
+                    updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomCode), { status: 'ended', winner: 'gargamel' });
+                }
+            }
+
+            requestAnimationFrame(gameLoop);
+        };
+
+        const endGame = (smurfWins) => {
+            gameActive = false; clearInterval(timerInterval);
+            document.getElementById('result-screen').classList.add('active');
+            document.getElementById('result-title').innerText = smurfWins ? "스머프 승리!" : "가가멜 승리!";
+            document.getElementById('result-desc').innerText = smurfWins ? "평화를 지켰습니다!" : "모든 스머프를 잡았습니다!";
+        };
+
+        function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+        window.addEventListener('resize', resizeCanvas);
+    </script>
+</body>
+</html>
