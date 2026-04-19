@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>스머프 술래잡기 - 마이 서버</title>
+    <title>스머프 술래잡기 - AI 멀티플레이어</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { margin: 0; overflow: hidden; background-color: #87CEEB; font-family: 'Pretendard', sans-serif; touch-action: none; }
@@ -22,18 +22,15 @@
 </head>
 <body>
 
-    <!-- 홈 화면 -->
+    <!-- Home Screen -->
     <div id="home-screen" class="screen active bg-sky-100">
-        <h1 class="text-4xl font-extrabold text-blue-600 mb-8 drop-shadow-md">🍄 스머프 전용 서버</h1>
-        <div id="loading-status" class="mb-4 text-blue-500 font-bold text-center">
-            서버 연결 시도 중...<br>
-            <span class="text-xs font-normal text-gray-400">(설정값이 올바르지 않으면 이 메시지가 사라지지 않습니다)</span>
-        </div>
-        <button onclick="goToCreateRoom()" class="w-64 py-4 mb-4 bg-blue-500 hover:bg-blue-600 text-white text-xl rounded-2xl shadow-lg font-bold">방 만들기</button>
-        <button onclick="openJoinModal()" class="w-64 py-4 bg-green-500 hover:bg-green-600 text-white text-xl rounded-2xl shadow-lg font-bold">방 참여하기</button>
+        <h1 class="text-4xl font-extrabold text-blue-600 mb-8 drop-shadow-md">🍄 스머프 전용 서버 v2</h1>
+        <div id="loading-status" class="mb-4 text-blue-500 font-bold text-center italic">서버 연결 중...</div>
+        <button onclick="goToCreateRoom()" class="w-64 py-4 mb-4 bg-blue-500 hover:bg-blue-600 text-white text-xl rounded-2xl shadow-lg font-bold transition-all active:scale-95">방 만들기</button>
+        <button onclick="openJoinModal()" class="w-64 py-4 bg-green-500 hover:bg-green-600 text-white text-xl rounded-2xl shadow-lg font-bold transition-all active:scale-95">방 참여하기</button>
     </div>
 
-    <!-- 방 참여 모달 -->
+    <!-- Join Modal -->
     <div id="join-modal" class="modal-overlay">
         <div class="bg-white p-8 rounded-3xl shadow-2xl w-80 text-center">
             <h2 class="text-2xl font-bold text-gray-800 mb-4">방 번호 입력</h2>
@@ -45,29 +42,34 @@
         </div>
     </div>
 
-    <!-- 대기실 -->
+    <!-- Lobby Screen -->
     <div id="lobby-screen" class="screen bg-sky-100">
         <div class="bg-white p-6 rounded-3xl shadow-xl w-80 flex flex-col h-[75vh]">
             <div class="flex justify-between items-end mb-4 border-b pb-2">
-                <h2 class="text-2xl font-bold text-gray-800">대기실</h2>
-                <span id="lobby-room-code" class="text-blue-500 font-bold text-sm"></span>
+                <h2 class="text-xl font-bold text-gray-800">대기실 (<span id="player-count">0</span>/10)</h2>
+                <span id="lobby-room-code" class="text-blue-500 font-bold text-sm tracking-widest"></span>
             </div>
-            <div class="flex-1 overflow-y-auto mb-4 bg-gray-50 rounded-xl p-2" id="player-list"></div>
-            <button id="start-btn" onclick="requestStartGame()" class="w-full py-4 bg-blue-600 text-white rounded-xl font-bold text-lg shadow-md mb-2 hidden">게임 시작</button>
-            <button onclick="location.reload()" class="w-full py-2 bg-gray-200 text-gray-600 rounded-xl font-bold text-sm">나가기</button>
+            <div class="flex-1 overflow-y-auto mb-4 bg-gray-50 rounded-xl p-2 space-y-2" id="player-list"></div>
+            
+            <div id="host-controls" class="hidden space-y-2">
+                <button onclick="addAIPlayer()" class="w-full py-3 bg-orange-400 hover:bg-orange-500 text-white rounded-xl font-bold shadow-sm transition-all">+ AI 봇 추가</button>
+                <button id="start-btn" onclick="requestStartGame()" class="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-lg shadow-md transition-all active:scale-95">게임 시작</button>
+            </div>
+            
+            <button onclick="location.reload()" class="w-full py-2 mt-2 bg-gray-200 text-gray-600 rounded-xl font-bold text-sm">나가기</button>
         </div>
     </div>
 
-    <!-- 역할 안내 -->
+    <!-- Role Announcement -->
     <div id="role-announcement">
         <div id="role-card-container" class="role-card">
             <span id="role-emoji" class="text-7xl block mb-2"></span>
             <span id="role-name" class="text-4xl font-black"></span>
-            <p id="role-desc" class="mt-4 text-gray-500 text-sm font-medium"></p>
+            <p id="role-desc" class="mt-4 text-gray-500 text-sm font-medium leading-relaxed"></p>
         </div>
     </div>
 
-    <!-- 게임 화면 -->
+    <!-- Game Canvas & UI -->
     <canvas id="game-canvas"></canvas>
     <div id="game-ui">
         <div class="bg-white/90 px-4 py-2 rounded-full shadow-lg border-2 border-blue-200 font-bold text-lg">⏱ <span id="timer-display">01:00</span></div>
@@ -77,6 +79,7 @@
     <div id="joystick-zone"><div id="joystick-knob"></div></div>
     <button id="action-btn">액션</button>
 
+    <!-- Result Screen -->
     <div id="result-screen" class="screen bg-black/90">
         <div class="bg-white p-8 rounded-3xl shadow-xl text-center w-80">
             <h2 id="result-title" class="text-3xl font-black mb-4"></h2>
@@ -88,9 +91,9 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot, collection, serverTimestamp, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // 🔴🔴🔴 아래 객체 내용을 본인의 Firebase 콘솔에서 복사한 값으로 정확히 교체하세요 🔴🔴🔴
+        // 🔴🔴🔴 아래 객체 내용을 본인의 Firebase 설정값으로 정확히 교체하세요 🔴🔴🔴
         const firebaseConfig = {
         apiKey: "AIzaSyDbME1nytVUi6ACfyAx_ilIbjcn1roTLdo",
         authDomain: "smurfs-b1f67.firebaseapp.com",
@@ -100,10 +103,11 @@
         appId: "1:1040524364405:web:bff2074c84a6aa7e0e063c",
         measurementId: "G-WCP4XN67E1"
         };
+
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-        const appId = "smurf-game-custom"; 
+        const appId = "smurf-game-v2";
 
         let user = null;
         let roomCode = "";
@@ -116,30 +120,25 @@
         const canvas = document.getElementById('game-canvas');
         const ctx = canvas.getContext('2d');
 
-        // 익명 로그인 시도
-        signInAnonymously(auth).catch(err => {
-            console.error("로그인 실패:", err);
-            let errorMsg = "연결 오류: Firebase 설정을 확인하세요";
-            if (err.code === 'auth/network-request-failed') {
-                errorMsg = "네트워크 차단됨: 브라우저 미리보기 보안 제한입니다.<br>이 코드를 .html 파일로 저장하여 직접 열어보세요!";
-            }
-            document.getElementById('loading-status').innerHTML = `<span class="text-red-500 font-bold">${errorMsg}</span>`;
+        // 익명 로그인
+        signInAnonymously(auth).catch(e => {
+            document.getElementById('loading-status').innerHTML = '<span class="text-red-500">연결 실패: 설정을 확인하세요</span>';
         });
 
         onAuthStateChanged(auth, u => {
             user = u;
             if(user) {
-                document.getElementById('loading-status').innerText = "✅ 서버 연결 성공!";
-                setTimeout(() => document.getElementById('loading-status').style.display = 'none', 1500);
+                document.getElementById('loading-status').innerText = "✅ 서버 연결됨 (Ready)";
+                setTimeout(() => document.getElementById('loading-status').style.visibility = 'hidden', 1000);
             }
         });
 
         window.goToCreateRoom = async () => {
-            if(!user) return alert("서버에 연결 중입니다. 잠시만 기다려주세요.");
+            if(!user) return;
             isHost = true;
             roomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
             await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomCode), {
-                hostId: user.uid, status: 'waiting', timer: 60, createdAt: serverTimestamp()
+                hostId: user.uid, status: 'waiting', createdAt: serverTimestamp()
             });
             joinLobby();
         };
@@ -157,19 +156,22 @@
                 closeJoinModal();
                 joinLobby();
             } else {
-                alert("방을 찾을 수 없습니다. 방 번호를 확인하세요.");
+                alert("존재하지 않는 방 번호입니다.");
             }
         };
 
         const joinLobby = async () => {
             await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomCode, 'players', user.uid), {
-                id: user.uid, x: window.innerWidth/2, y: window.innerHeight/2, role: 'smurf', state: 'alive', outTimer: 0, isHost: isHost
+                id: user.uid, x: 200, y: 200, role: 'smurf', state: 'alive', outTimer: 0, isHost: isHost, isAI: false
             });
 
             document.getElementById('lobby-room-code').innerText = roomCode;
             document.getElementById('home-screen').classList.remove('active');
             document.getElementById('lobby-screen').classList.add('active');
 
+            if(isHost) document.getElementById('host-controls').classList.remove('hidden');
+
+            // 방 상태 감시
             onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomCode), snap => {
                 const data = snap.data();
                 if(!data) return;
@@ -177,26 +179,50 @@
                 if(data.status === 'ended') endGame(data.winner === 'smurfs');
             });
 
+            // 플레이어 목록 감시
             onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'rooms', roomCode, 'players'), snap => {
                 const list = document.getElementById('player-list');
                 list.innerHTML = "";
+                players = {};
                 snap.forEach(d => {
                     const p = d.data();
                     players[p.id] = p;
-                    list.innerHTML += `<div class="p-2 mb-2 bg-white rounded border shadow-sm flex items-center gap-2">
-                        <span class="text-xl">${p.isHost ? '👑' : '👤'}</span>
-                        <span class="font-medium">${p.id === user.uid ? '나 (참가 중)' : '다른 플레이어'}</span>
+                    const name = p.isAI ? "🤖 AI 봇" : (p.id === user.uid ? "나 (참가 중)" : "플레이어");
+                    list.innerHTML += `<div class="p-3 bg-white rounded-lg border flex justify-between items-center shadow-sm">
+                        <span class="font-medium text-gray-700">${name}</span>
+                        <div class="flex items-center gap-2">
+                            ${p.isHost ? '<span class="text-[10px] bg-blue-500 text-white px-1.5 py-0.5 rounded-md">HOST</span>' : ''}
+                            ${isHost && p.id !== user.uid ? `<button onclick="removePlayer('${p.id}')" class="text-red-400 hover:text-red-600 transition-colors">✕</button>` : ''}
+                        </div>
                     </div>`;
                 });
-                if(isHost) document.getElementById('start-btn').classList.remove('hidden');
+                document.getElementById('player-count').innerText = Object.keys(players).length;
             });
+        };
+
+        window.addAIPlayer = async () => {
+            if (Object.keys(players).length >= 10) return alert("최대 10인까지만 참여 가능합니다.");
+            const aiId = "AI_" + Math.random().toString(36).substring(2, 6);
+            await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomCode, 'players', aiId), {
+                id: aiId, x: 300, y: 300, role: 'smurf', state: 'alive', outTimer: 0, isHost: false, isAI: true
+            });
+        };
+
+        window.removePlayer = async (id) => {
+            await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomCode, 'players', id));
         };
 
         window.requestStartGame = async () => {
             const ids = Object.keys(players);
+            if(ids.length < 1) return;
+
+            // 역할 배정 (가가멜, 아즈라엘, 파파스머프 우선 배정)
             let roles = ['gargamel', 'azrael', 'papa'];
+            if (ids.length < 3) roles = ['gargamel', 'smurf', 'smurf'].slice(0, ids.length);
+            
             while(roles.length < ids.length) roles.push('smurf');
             roles.sort(() => Math.random() - 0.5);
+            
             const roleMap = {};
             ids.forEach((id, i) => roleMap[id] = roles[i]);
 
@@ -209,11 +235,12 @@
             myRole = role;
             const ann = document.getElementById('role-announcement');
             const data = {
-                'gargamel': { emoji: '🧙‍♂️', name: '가가멜', desc: '스머프를 잡으세요!' },
-                'azrael': { emoji: '🐈', name: '아즈라엘', desc: '손잡은 스머프를 떼어놓으세요!' },
-                'papa': { emoji: '🎅', name: '파파스머프', desc: '아웃된 친구를 구하세요!' },
-                'smurf': { emoji: '🧢', name: '스머프', desc: '1분을 버티세요!' }
-            }[role];
+                'gargamel': { emoji: '🧙‍♂️', name: '가가멜', desc: '도망치는 스머프들을 모두 잡으세요!' },
+                'azrael': { emoji: '🐈', name: '아즈라엘', desc: '무적 상태인 스머프들의 손을 떼어놓으세요!' },
+                'papa': { emoji: '🎅', name: '파파스머프', desc: '잡힌 친구들을 근처에서 구조하세요!' },
+                'smurf': { emoji: '🧢', name: '스머프', desc: '1분 동안 가가멜을 피해 살아남으세요!' }
+            }[role] || { emoji: '🧢', name: '스머프', desc: '살아남으세요!' };
+
             document.getElementById('role-emoji').innerText = data.emoji;
             document.getElementById('role-name').innerText = data.name;
             document.getElementById('role-desc').innerText = data.desc;
@@ -238,17 +265,27 @@
             
             resizeCanvas();
 
+            // 위치 동기화 루프
             setInterval(() => {
-                if(!gameActive || !user) return;
+                if(!gameActive) return;
                 const me = players[user.uid];
                 updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomCode, 'players', user.uid), {
                     x: me.x, y: me.y, state: me.state, outTimer: me.outTimer
                 });
+
+                // 호스트가 AI 제어
+                if(isHost) {
+                    Object.values(players).forEach(p => {
+                        if(p.isAI) updateAI(p);
+                    });
+                }
             }, 100);
 
+            // 타이머 루프
             timerInterval = setInterval(() => {
                 if(localTimer > 0) localTimer--;
                 document.getElementById('timer-display').innerText = `00:${localTimer.toString().padStart(2,'0')}`;
+                
                 if(players[user.uid].outTimer > 0) players[user.uid].outTimer--;
                 
                 if(isHost && localTimer <= 0) {
@@ -259,10 +296,51 @@
             gameLoop();
         };
 
+        // AI 행동 패턴 로직
+        const updateAI = (ai) => {
+            if(ai.state === 'dead') return;
+            const speed = 3.5;
+
+            if(ai.role === 'gargamel') {
+                // 술래 AI: 가장 가까운 스머프 추격
+                let nearest = null, minDist = Infinity;
+                Object.values(players).forEach(p => {
+                    if(p.role === 'smurf' && p.state === 'alive') {
+                        const d = Math.hypot(p.x - ai.x, p.y - ai.y);
+                        if(d < minDist) { minDist = d; nearest = p; }
+                    }
+                });
+                if(nearest) {
+                    const angle = Math.atan2(nearest.y - ai.y, nearest.x - ai.x);
+                    ai.x += Math.cos(angle) * speed;
+                    ai.y += Math.sin(angle) * speed;
+                }
+            } else {
+                // 스머프 AI: 가가멜로부터 도망
+                const g = Object.values(players).find(p => p.role === 'gargamel');
+                if(g && Math.hypot(g.x - ai.x, g.y - ai.y) < 200) {
+                    const angle = Math.atan2(ai.y - g.y, ai.x - g.x);
+                    ai.x += Math.cos(angle) * speed;
+                    ai.y += Math.sin(angle) * speed;
+                } else {
+                    // 무작위 배회
+                    ai.x += (Math.random() - 0.5) * 6;
+                    ai.y += (Math.random() - 0.5) * 6;
+                }
+            }
+
+            ai.x = Math.max(50, Math.min(canvas.width - 50, ai.x));
+            ai.y = Math.max(50, Math.min(canvas.height - 50, ai.y));
+
+            updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomCode, 'players', ai.id), {
+                x: ai.x, y: ai.y, state: ai.state
+            });
+        };
+
         const tryRevive = () => {
             const me = players[user.uid];
             Object.values(players).forEach(p => {
-                if(p.state === 'dead' && p.outTimer === 0 && Math.hypot(p.x - me.x, p.y - me.y) < 60) {
+                if(p.state === 'dead' && p.outTimer === 0 && Math.hypot(p.x - me.x, p.y - me.y) < 70) {
                     updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomCode, 'players', p.id), {
                         state: 'alive', x: canvas.width/2, y: canvas.height/2
                     });
@@ -270,6 +348,7 @@
             });
         };
 
+        // 입력 제어
         let joyVec = {x:0, y:0};
         const jz = document.getElementById('joystick-zone');
         const jk = document.getElementById('joystick-knob');
@@ -279,57 +358,65 @@
             const move = t => {
                 let dx = t.clientX - cx, dy = t.clientY - cy;
                 const d = Math.hypot(dx, dy);
-                if(d > 40) { dx *= 40/d; dy *= 40/d; }
+                if(d > 45) { dx *= 45/d; dy *= 45/d; }
                 jk.style.transform = `translate(${dx}px, ${dy}px)`;
-                joyVec = {x: dx/40, y: dy/40};
+                joyVec = {x: dx/45, y: dy/45};
             };
             const end = () => { jk.style.transform = `translate(0,0)`; joyVec = {x:0, y:0}; window.removeEventListener('touchmove', move); };
             window.addEventListener('touchmove', move); window.addEventListener('touchend', end);
-            move(e.touches[0]);
+            if(e.touches[0]) move(e.touches[0]);
         });
 
+        // 게임 루프 및 렌더링
         const gameLoop = () => {
             if(!gameActive) return;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            const w = canvas.width, h = canvas.height, m = w * 0.08;
-
-            ctx.fillStyle = "#87CEEB"; ctx.fillRect(0, 0, w, h);
-            ctx.fillStyle = "#86efac"; ctx.fillRect(m, m, w-m*2, h-m*2);
-            ctx.strokeStyle = "#166534"; ctx.lineWidth = 10; ctx.strokeRect(m, m, w-m*2, h-m*2);
+            
+            // 배경 그리기
+            ctx.fillStyle = "#86efac"; ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             const me = players[user.uid];
             if(me.state === 'alive' || (me.state === 'dead' && me.outTimer === 0)) {
-                me.x += joyVec.x * 4; me.y += joyVec.y * 4;
-                me.x = Math.max(20, Math.min(w-20, me.x));
-                me.y = Math.max(20, Math.min(h-20, me.y));
+                me.x += joyVec.x * 5.5; me.y += joyVec.y * 5.5;
+                me.x = Math.max(20, Math.min(canvas.width-20, me.x));
+                me.y = Math.max(20, Math.min(canvas.height-20, me.y));
             }
 
             Object.values(players).forEach(p => {
                 ctx.save();
+                const emo = {'gargamel':'🧙‍♂️', 'azrael':'🐈', 'papa':'🎅', 'smurf':'🧢'}[p.role] || '🧢';
+                
                 if(p.state === 'dead') {
-                    ctx.globalAlpha = 0.5; ctx.font = "30px Arial"; ctx.textAlign = "center";
-                    ctx.fillText('👻', p.x, p.y);
-                    if(p.outTimer > 0) { ctx.fillStyle="white"; ctx.font="12px Arial"; ctx.fillText(p.outTimer+"s", p.x, p.y+20); }
+                    ctx.globalAlpha = 0.4;
+                    ctx.font = "32px Arial";
+                    ctx.fillText('👻', p.x - 16, p.y + 12);
                 } else {
-                    const emo = {'gargamel':'🧙‍♂️', 'azrael':'🐈', 'papa':'🎅', 'smurf':'🧢'}[p.role];
-                    ctx.font = "34px Arial"; ctx.textAlign = "center";
-                    ctx.fillText(emo, p.x, p.y);
+                    ctx.font = "36px Arial";
+                    ctx.fillText(emo, p.x - 18, p.y + 14);
                 }
-                if(p.id === user.uid) { 
-                    ctx.beginPath(); ctx.arc(p.x, p.y, 25, 0, Math.PI*2); 
-                    ctx.strokeStyle="white"; ctx.stroke(); 
+
+                // 내 캐릭터 표시
+                if(p.id === user.uid) {
+                    ctx.beginPath(); ctx.arc(p.x, p.y, 28, 0, Math.PI*2);
+                    ctx.strokeStyle = "rgba(255, 255, 255, 0.8)"; ctx.lineWidth = 3; ctx.stroke();
                 }
                 ctx.restore();
 
-                if(myRole === 'gargamel' && p.role === 'smurf' && p.state === 'alive') {
-                    if(Math.hypot(p.x - me.x, p.y - me.y) < 30) {
-                        updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomCode, 'players', p.id), {
-                            state: 'dead', outTimer: 10, x: 50, y: 50
+                // 충돌 판정 (호스트가 처리)
+                if(isHost) {
+                    if(p.role === 'gargamel') {
+                        Object.values(players).forEach(target => {
+                            if(target.role === 'smurf' && target.state === 'alive' && Math.hypot(p.x - target.x, p.y - target.y) < 35) {
+                                updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomCode, 'players', target.id), {
+                                    state: 'dead', outTimer: 6
+                                });
+                            }
                         });
                     }
                 }
             });
 
+            // 승리 조건 체크 (호스트)
             if(isHost) {
                 const aliveSmurfs = Object.values(players).filter(p => p.role === 'smurf' && p.state === 'alive');
                 if(aliveSmurfs.length === 0 && Object.keys(players).length > 1) {
@@ -343,8 +430,8 @@
         const endGame = (smurfWins) => {
             gameActive = false; clearInterval(timerInterval);
             document.getElementById('result-screen').classList.add('active');
-            document.getElementById('result-title').innerText = smurfWins ? "스머프 승리!" : "가가멜 승리!";
-            document.getElementById('result-desc').innerText = smurfWins ? "평화를 지켰습니다!" : "모든 스머프를 잡았습니다!";
+            document.getElementById('result-title').innerText = smurfWins ? "스머프 승리! 🎉" : "가가멜 승리! 🧙‍♂️";
+            document.getElementById('result-desc').innerText = smurfWins ? "가가멜을 따돌리고 마을을 지켰습니다!" : "모든 스머프를 붙잡는 데 성공했습니다!";
         };
 
         function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
